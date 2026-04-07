@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Kinders · мягкий чат</title>
+    <title>Kinders · фиолетово-синий чат</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background: #0f172a; /* тёмно-синий глубокий фон */
             height: 100vh;
             display: flex;
             justify-content: center;
@@ -18,47 +22,50 @@
             padding: 16px;
         }
 
-        /* главный контейнер — никаких сдвигов */
+        /* главный контейнер — мягкая карточка */
         .app-wrapper {
             width: 100%;
             max-width: 1000px;
             height: 90vh;
-            min-height: 500px;
-            background: #ffffff;
+            min-height: 520px;
+            background: #1e293b; /* тёмно-синий на тон светлее фона */
             border-radius: 32px;
-            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.2);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            transition: all 0.2s ease;
         }
 
-        /* панель входа */
+        /* панель аутентификации */
         .auth-panel {
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #ffffff;
+            background: #1e293b;
         }
 
         .auth-card {
-            background: #f9fbfd;
+            background: #0f172a;
             border-radius: 28px;
             padding: 32px 28px;
             width: 100%;
             max-width: 420px;
-            border: 1px solid #e6edf2;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
         }
 
         .auth-card h3 {
             font-size: 26px;
             font-weight: 600;
-            color: #1e2f3f;
             margin-bottom: 8px;
+            color: #c4b5fd; /* мягкий фиолетовый */
+            letter-spacing: -0.3px;
         }
 
         .auth-card p {
-            color: #5c6f82;
+            color: #94a3b8;
             margin-bottom: 28px;
             font-size: 14px;
         }
@@ -68,25 +75,29 @@
         }
 
         .input-group label {
+            display: block;
             font-size: 13px;
             font-weight: 500;
-            color: #2c3e50;
+            color: #cbd5e1;
             margin-bottom: 6px;
-            display: block;
         }
 
         .input-group input {
             width: 100%;
             padding: 12px 16px;
-            border-radius: 30px;
-            border: 1.5px solid #dee6ed;
-            background: white;
+            border-radius: 24px;
+            border: 1.5px solid #334155;
+            background: #0f172a;
+            color: #f1f5f9;
             font-size: 15px;
+            transition: 0.2s;
+            font-family: inherit;
         }
 
         .input-group input:focus {
             outline: none;
-            border-color: #8d9eae;
+            border-color: #a78bfa; /* мягкий фиолетовый */
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
         }
 
         .auth-buttons {
@@ -96,35 +107,44 @@
         }
 
         .btn-primary {
-            background: #2c3e50;
+            background: #8b5cf6; /* мягкий фиолетовый */
             color: white;
             border: none;
             padding: 10px 20px;
             border-radius: 40px;
             font-weight: 600;
+            font-size: 14px;
             cursor: pointer;
-            flex: 1;
             transition: 0.2s;
+            flex: 1;
         }
 
-        .btn-primary:hover { background: #1f2f3e; }
+        .btn-primary:hover {
+            background: #7c3aed;
+            transform: translateY(-1px);
+        }
 
         .btn-secondary {
-            background: #eef2f6;
-            color: #2c3e50;
-            border: 1px solid #d4dfea;
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
             padding: 10px 20px;
             border-radius: 40px;
             font-weight: 500;
             cursor: pointer;
+            transition: 0.2s;
             flex: 1;
         }
 
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
         .error-msg {
-            color: #c0392b;
-            background: #fee9e7;
-            padding: 10px;
-            border-radius: 24px;
+            color: #fda4af;
+            background: #4c0519;
+            padding: 10px 14px;
+            border-radius: 20px;
             font-size: 13px;
             text-align: center;
             margin-top: 16px;
@@ -135,64 +155,86 @@
             display: flex;
             flex-direction: column;
             height: 100%;
+            width: 100%;
+            background: #1e293b;
         }
 
         .chat-header {
             padding: 18px 24px;
-            border-bottom: 1px solid #eef2f8;
+            border-bottom: 1px solid #334155;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: #1e293b;
             flex-shrink: 0;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .brand h2 {
             font-size: 1.45rem;
             font-weight: 600;
-            color: #2c3e50;
+            background: linear-gradient(135deg, #c4b5fd, #a78bfa);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.2px;
         }
 
         .user-panel {
             display: flex;
-            gap: 16px;
             align-items: center;
+            gap: 16px;
             flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         .username-badge {
-            background: #eff3f8;
+            background: #0f172a;
             padding: 6px 14px;
             border-radius: 40px;
             font-size: 14px;
             font-weight: 500;
-            color: #1e2f3f;
+            color: #c4b5fd;
+            border: 1px solid #334155;
         }
 
         .online-count {
-            background: #e1f0e8;
-            color: #2c6e4f;
+            background: #0f172a;
+            color: #86efac;
             padding: 6px 12px;
             border-radius: 40px;
             font-size: 13px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #334155;
         }
 
         .logout-btn {
             background: none;
-            border: 1px solid #d4dfea;
+            border: 1px solid #fda4af;
             padding: 6px 16px;
             border-radius: 30px;
-            color: #5b6f82;
+            color: #fda4af; /* персиковый акцент */
+            font-weight: 500;
             cursor: pointer;
             transition: 0.2s;
+            font-size: 13px;
         }
 
         .logout-btn:hover {
-            background: #fef2f0;
-            border-color: #d9b4ae;
-            color: #b33c2e;
+            background: #4c0519;
+            border-color: #fb7185;
+            color: #ffe4e6;
         }
 
-        /* область сообщений — стабильный скролл */
+        /* Область сообщений */
         .messages-area {
             flex: 1;
             overflow-y: auto;
@@ -200,95 +242,155 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            background: #fdfdfd;
+            background: #0f172a;
+            scroll-behavior: smooth;
         }
 
+        .messages-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages-area::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 8px;
+        }
+
+        .messages-area::-webkit-scrollbar-thumb {
+            background: #8b5cf6;
+            border-radius: 8px;
+        }
+
+        /* сообщения */
         .message {
             max-width: 75%;
             padding: 10px 16px;
             border-radius: 24px;
             word-wrap: break-word;
-            font-size: 14px;
+            word-break: break-word;
             line-height: 1.4;
+            font-size: 14px;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px);}
+            to { opacity: 1; transform: translateY(0);}
         }
 
         .message.own {
-            background: #e2eaf1;
-            color: #1a2c3e;
+            background: #2d3a5e;
+            color: #e2e8f0;
             align-self: flex-end;
             border-bottom-right-radius: 6px;
+            border: 1px solid #4c1d95;
         }
 
         .message.other {
-            background: #f1f5f9;
-            border: 1px solid #e9edf2;
+            background: #1e293b;
+            color: #cbd5e1;
             align-self: flex-start;
             border-bottom-left-radius: 6px;
+            border: 1px solid #334155;
         }
 
         .message-username {
             font-size: 12px;
             font-weight: 600;
-            margin-bottom: 4px;
-            opacity: 0.75;
+            margin-bottom: 5px;
+            opacity: 0.85;
+            letter-spacing: -0.2px;
+            color: #c4b5fd;
         }
 
         .system-message {
             text-align: center;
             font-size: 12px;
-            color: #7c8b9c;
-            background: #f4f7fb;
+            color: #94a3b8;
+            background: #1e293b;
             padding: 6px 12px;
             border-radius: 40px;
             width: fit-content;
             align-self: center;
-            margin: 4px 0;
+            max-width: 90%;
+            margin: 6px 0;
+            border: 1px solid #334155;
         }
 
+        /* нижняя панель ввода */
         .input-bar {
             flex-shrink: 0;
-            padding: 18px 24px 24px;
-            border-top: 1px solid #edf2f7;
+            padding: 18px 24px 24px 24px;
+            background: #1e293b;
+            border-top: 1px solid #334155;
             display: flex;
             gap: 12px;
-            background: white;
+            align-items: center;
         }
 
         .input-bar input {
             flex: 1;
             padding: 14px 18px;
             border-radius: 44px;
-            border: 1px solid #dee6ed;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #f1f5f9;
             font-size: 15px;
+            transition: 0.2s;
+            font-family: inherit;
         }
 
         .input-bar input:focus {
             outline: none;
-            border-color: #90a4b7;
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
         }
 
         .input-bar button {
-            background: #2c3e50;
+            background: #8b5cf6;
             border: none;
             padding: 12px 28px;
             border-radius: 44px;
             color: white;
             font-weight: 600;
             cursor: pointer;
+            transition: 0.2s;
+            font-size: 14px;
         }
 
-        .hidden { display: none !important; }
+        .input-bar button:hover {
+            background: #7c3aed;
+            transform: scale(0.97);
+        }
 
+        .hidden {
+            display: none !important;
+        }
+
+        /* адаптивность */
         @media (max-width: 640px) {
-            .message { max-width: 85%; }
-            .user-panel { gap: 8px; }
-            .input-bar { padding: 12px 16px 18px; }
+            .app-wrapper {
+                height: 95vh;
+                border-radius: 28px;
+            }
+            .message {
+                max-width: 85%;
+            }
+            .user-panel {
+                gap: 8px;
+            }
+            .username-badge {
+                font-size: 12px;
+                padding: 4px 10px;
+            }
+            .input-bar {
+                padding: 12px 16px 18px;
+            }
         }
     </style>
 </head>
 <body>
 <div class="app-wrapper" id="appWrapper">
-    <!-- форма входа/регистрации -->
+    <!-- Панель входа / регистрации -->
     <div id="authContainer" class="auth-panel">
         <div class="auth-card">
             <h3>🐻 добро пожаловать</h3>
@@ -296,11 +398,11 @@
             <div id="authError" class="error-msg hidden"></div>
             <div class="input-group">
                 <label>Имя пользователя</label>
-                <input type="text" id="loginUsername" placeholder="например, ann_light">
+                <input type="text" id="loginUsername" placeholder="например, ann_light" autocomplete="username">
             </div>
             <div class="input-group">
                 <label>Пароль</label>
-                <input type="password" id="loginPassword" placeholder="••••••">
+                <input type="password" id="loginPassword" placeholder="••••••" autocomplete="current-password">
             </div>
             <div class="auth-buttons">
                 <button class="btn-primary" id="doLoginBtn">Войти</button>
@@ -309,7 +411,7 @@
             <div id="registerForm" class="hidden" style="margin-top: 24px;">
                 <div class="input-group">
                     <label>Новый логин</label>
-                    <input type="text" id="regUsername" placeholder="от 3 символов">
+                    <input type="text" id="regUsername" placeholder="от 3 до 20 символов">
                 </div>
                 <div class="input-group">
                     <label>Пароль</label>
@@ -323,167 +425,351 @@
         </div>
     </div>
 
-    <!-- чат (изначально скрыт) -->
+    <!-- Чат-интерфейс -->
     <div id="chatInterface" class="chat-interface hidden">
         <div class="chat-header">
-            <div class="brand"><span style="font-size:26px;">🍃</span><h2>Kinders · мягкий чат</h2></div>
+            <div class="brand">
+                <span style="font-size: 26px;">🍃</span>
+                <h2>Kinders · фиолетовый чат</h2>
+            </div>
             <div class="user-panel">
                 <span class="username-badge" id="chatUsername">—</span>
-                <span class="online-count" id="onlineUsersBadge">👥 0 онлайн</span>
+                <span class="online-count" id="onlineUsersBadge">📡 0 онлайн</span>
                 <button class="logout-btn" id="chatLogoutBtn">Выйти</button>
             </div>
         </div>
+
         <div class="messages-area" id="messagesList">
-            <div class="system-message">✨ Соединение с чатом...</div>
+            <div class="system-message">✨ соединяемся с чатом...</div>
         </div>
+
         <div class="input-bar">
-            <input type="text" id="chatMessageInput" placeholder="Напишите сообщение..." maxlength="500">
+            <input type="text" id="chatMessageInput" placeholder="Напишите сообщение..." maxlength="500" autocomplete="off">
             <button id="sendMessageBtn">Отправить</button>
         </div>
     </div>
 </div>
 
 <script>
-    // ---------- работа с куками ----------
+    // ---- КУКИ ----
     function setCookie(name, value, days = 7) {
-        const expires = new Date(Date.now() + days * 864e5).toUTCString();
-        document.cookie = `${name}=${value}; path=/; expires=${expires}; SameSite=Lax`;
+        const expires = new Date();
+        expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+        document.cookie = `${name}=${value}; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
     }
+
     function getCookie(name) {
         const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
         return match ? match[2] : null;
     }
-    function deleteCookie(name) { document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`; }
 
-    // парсинг JWT
-    function parseJwt(token) {
-        try {
-            const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-            return JSON.parse(atob(base64));
-        } catch { return null; }
+    function deleteCookie(name) {
+        document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax`;
     }
 
+    // ---- JWT парсер ----
+    function parseJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ---- Глобальные переменные ----
     let currentSocket = null;
     let currentUser = null;
 
-    // DOM-элементы
-    const authDiv = document.getElementById('authContainer');
-    const chatDiv = document.getElementById('chatInterface');
-    const messagesBox = document.getElementById('messagesList');
-    const errorDiv = document.getElementById('authError');
+    // DOM элементы
+    const authContainer = document.getElementById('authContainer');
+    const chatInterface = document.getElementById('chatInterface');
+    const authErrorDiv = document.getElementById('authError');
+    const messagesContainer = document.getElementById('messagesList');
+    const chatUsernameSpan = document.getElementById('chatUsername');
+    const onlineCountSpan = document.getElementById('onlineUsersBadge');
+    const messageInput = document.getElementById('chatMessageInput');
+    const sendBtn = document.getElementById('sendMessageBtn');
+    const chatLogoutBtn = document.getElementById('chatLogoutBtn');
 
-    // вспомогательные UI
-    function showAuthError(msg) { errorDiv.textContent = msg; errorDiv.classList.remove('hidden'); setTimeout(() => errorDiv.classList.add('hidden'), 3000); }
+    function showAuthError(msg) {
+        authErrorDiv.textContent = msg;
+        authErrorDiv.classList.remove('hidden');
+        setTimeout(() => authErrorDiv.classList.add('hidden'), 3000);
+    }
+
+    function clearAuthError() {
+        authErrorDiv.classList.add('hidden');
+    }
+
     function addSystemMessage(text) {
-        const sys = document.createElement('div'); sys.className = 'system-message'; sys.textContent = text;
-        messagesBox.appendChild(sys); messagesBox.scrollTop = messagesBox.scrollHeight;
-        setTimeout(() => sys.remove(), 4000);
+        const sysDiv = document.createElement('div');
+        sysDiv.className = 'system-message';
+        sysDiv.textContent = text;
+        messagesContainer.appendChild(sysDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        setTimeout(() => sysDiv.remove(), 3500);
     }
-    function addMessageToChat(msg, isOwn) {
-        const div = document.createElement('div'); div.className = `message ${isOwn ? 'own' : 'other'}`;
-        div.innerHTML = `<div class="message-username">${escapeHtml(msg.username)}</div><div>${escapeHtml(msg.text)}</div>`;
-        messagesBox.appendChild(div); messagesBox.scrollTop = messagesBox.scrollHeight;
-    }
-    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
 
-    // очистка и переключение на форму входа
+    function addMessageToChat(msg, isOwn) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+        const usernameHtml = `<div class="message-username">${escapeHtml(msg.username)}</div>`;
+        const textHtml = `<div>${escapeHtml(msg.text)}</div>`;
+        messageDiv.innerHTML = usernameHtml + textHtml;
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function renderMessageHistory(messages) {
+        messagesContainer.innerHTML = '';
+        if (!messages || messages.length === 0) {
+            const welcome = document.createElement('div');
+            welcome.className = 'system-message';
+            welcome.textContent = '🍃 Добро пожаловать в Kinders. Здесь говорят свободно и уютно.';
+            messagesContainer.appendChild(welcome);
+        } else {
+            messages.forEach(msg => {
+                const isOwn = (currentUser && msg.userId === currentUser.id);
+                addMessageToChat(msg, isOwn);
+            });
+        }
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // ---- Socket.IO подключение ----
+    function initSocketConnection(token, userData) {
+        if (currentSocket) {
+            currentSocket.disconnect();
+            currentSocket = null;
+        }
+
+        const socket = io({
+            auth: { token: token },
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            addSystemMessage('✅ Подключено к серверу');
+        });
+
+        socket.on('messageHistory', (history) => {
+            if (Array.isArray(history)) renderMessageHistory(history);
+        });
+
+        socket.on('newMessage', (msg) => {
+            if (!currentUser) return;
+            const isOwn = (msg.userId === currentUser.id);
+            addMessageToChat(msg, isOwn);
+        });
+
+        socket.on('onlineUsers', (users) => {
+            const count = Array.isArray(users) ? users.length : 0;
+            onlineCountSpan.innerHTML = `👥 ${count} онлайн`;
+        });
+
+        socket.on('user_joined', (joinMsg) => {
+            if (typeof joinMsg === 'string') addSystemMessage(joinMsg);
+            else if (joinMsg?.username) addSystemMessage(`✨ ${joinMsg.username} присоединился`);
+        });
+
+        socket.on('user_left', (leftMsg) => {
+            if (typeof leftMsg === 'string') addSystemMessage(leftMsg);
+            else if (leftMsg?.username) addSystemMessage(`🍂 ${leftMsg.username} покинул чат`);
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Socket error:', err);
+            addSystemMessage('⚠️ Ошибка соединения. Проверьте сервер.');
+            if (err.message === 'Authentication error') {
+                addSystemMessage('❌ Ошибка авторизации. Выйдите и войдите заново.');
+                setTimeout(() => logoutAndReset(), 1500);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            addSystemMessage('🔌 Соединение разорвано. Переподключение...');
+        });
+
+        currentSocket = socket;
+        return socket;
+    }
+
+    function sendChatMessage() {
+        if (!currentSocket || !currentUser) {
+            addSystemMessage('Нет соединения с чатом');
+            return;
+        }
+        const text = messageInput.value.trim();
+        if (text === '') return;
+        currentSocket.emit('sendMessage', text);
+        messageInput.value = '';
+        messageInput.focus();
+    }
+
     function logoutAndReset() {
-        if (currentSocket) { currentSocket.disconnect(); currentSocket = null; }
+        if (currentSocket) {
+            currentSocket.disconnect();
+            currentSocket = null;
+        }
         deleteCookie('swolts_token');
         currentUser = null;
-        chatDiv.classList.add('hidden');
-        authDiv.classList.remove('hidden');
+        chatInterface.classList.add('hidden');
+        authContainer.classList.remove('hidden');
         document.getElementById('loginUsername').value = '';
         document.getElementById('loginPassword').value = '';
         document.getElementById('regUsername').value = '';
         document.getElementById('regPassword').value = '';
         document.getElementById('registerForm').classList.add('hidden');
-        document.getElementById('doLoginBtn').parentElement.style.display = 'flex';
-        document.getElementById('showRegisterBtn').style.display = 'block';
+        clearAuthError();
+        messagesContainer.innerHTML = '<div class="system-message">✨ Соединение закрыто. Войдите снова.</div>';
     }
 
-    // запуск чата после успешной аутентификации (токен уже в куке)
     function startChatWithToken(token, userPayload) {
-        if (!token || !userPayload) { logoutAndReset(); return false; }
-        currentUser = { id: userPayload.id, username: userPayload.username };
-        authDiv.classList.add('hidden');
-        chatDiv.classList.remove('hidden');
-        document.getElementById('chatUsername').innerText = currentUser.username;
-        messagesBox.innerHTML = '<div class="system-message">🔄 Загрузка истории...</div>';
+        if (!token || !userPayload) {
+            logoutAndReset();
+            return false;
+        }
+        currentUser = {
+            id: userPayload.id || userPayload.userId,
+            username: userPayload.username
+        };
+        if (!currentUser.id || !currentUser.username) {
+            const fallback = parseJwt(token);
+            if (fallback && (fallback.id || fallback.userId) && fallback.username) {
+                currentUser.id = fallback.id || fallback.userId;
+                currentUser.username = fallback.username;
+            } else {
+                logoutAndReset();
+                return false;
+            }
+        }
 
-        // подключаем Socket.IO с токеном из куки
-        currentSocket = io({ auth: { token } });
-        currentSocket.on('connect', () => addSystemMessage('✅ Подключено к серверу'));
-        currentSocket.on('messageHistory', (history) => {
-            messagesBox.innerHTML = '';
-            if (!history.length) addSystemMessage('🍃 Пока нет сообщений. Напишите первое!');
-            history.forEach(msg => addMessageToChat(msg, msg.userId === currentUser.id));
-        });
-        currentSocket.on('newMessage', (msg) => addMessageToChat(msg, msg.userId === currentUser.id));
-        currentSocket.on('onlineUsers', (users) => document.getElementById('onlineUsersBadge').innerHTML = `👥 ${users.length} онлайн`);
-        currentSocket.on('user_joined', (data) => addSystemMessage(`✨ ${data.username} присоединился`));
-        currentSocket.on('user_left', (data) => addSystemMessage(`🍂 ${data.username} покинул чат`));
-        currentSocket.on('connect_error', (err) => { addSystemMessage('⚠️ Ошибка соединения'); if(err.message === 'Authentication error') logoutAndReset(); });
+        authContainer.classList.add('hidden');
+        chatInterface.classList.remove('hidden');
+        chatUsernameSpan.textContent = currentUser.username;
+        messagesContainer.innerHTML = '<div class="system-message">🔄 Загрузка истории...</div>';
+        initSocketConnection(token, currentUser);
         return true;
     }
 
-    // API-запросы к серверу
+    function tryAutoLoginFromCookie() {
+        const token = getCookie('swolts_token');
+        if (!token) return false;
+        const payload = parseJwt(token);
+        if (!payload || !payload.username) {
+            deleteCookie('swolts_token');
+            return false;
+        }
+        return startChatWithToken(token, payload);
+    }
+
+    // ---- API для регистрации и логина ----
     async function apiRequest(url, data) {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.message || 'Ошибка');
-        return json;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || 'Ошибка сервера');
+        }
+        return result;
     }
 
     async function handleLogin() {
         const username = document.getElementById('loginUsername').value.trim();
         const password = document.getElementById('loginPassword').value;
-        if (!username || !password) return showAuthError('Заполните все поля');
+        if (!username || !password) {
+            showAuthError('Заполните имя и пароль');
+            return;
+        }
+        clearAuthError();
         try {
             const data = await apiRequest('/api/login', { username, password });
+            if (!data.token) throw new Error('Токен не получен');
             setCookie('swolts_token', data.token, 7);
-            const payload = parseJwt(data.token);
-            startChatWithToken(data.token, payload || { id: data.userId, username: data.username });
-        } catch(e) { showAuthError(e.message); }
+            const payload = parseJwt(data.token) || { id: data.userId, username: data.username };
+            startChatWithToken(data.token, payload);
+        } catch (err) {
+            showAuthError(err.message || 'Неверный логин или пароль');
+        }
     }
 
     async function handleRegister() {
         const username = document.getElementById('regUsername').value.trim();
         const password = document.getElementById('regPassword').value;
-        if (username.length < 3) return showAuthError('Логин минимум 3 символа');
-        if (password.length < 4) return showAuthError('Пароль минимум 4 символа');
+        if (!username || username.length < 3) {
+            showAuthError('Логин должен быть от 3 символов');
+            return;
+        }
+        if (!password || password.length < 4) {
+            showAuthError('Пароль минимум 4 символа');
+            return;
+        }
+        clearAuthError();
         try {
             const data = await apiRequest('/api/register', { username, password });
+            if (!data.token) throw new Error('Ошибка регистрации');
             setCookie('swolts_token', data.token, 7);
-            const payload = parseJwt(data.token);
-            startChatWithToken(data.token, payload || { id: data.userId, username: data.username });
-        } catch(e) { showAuthError(e.message); }
+            const payload = parseJwt(data.token) || { id: data.userId, username: data.username };
+            startChatWithToken(data.token, payload);
+        } catch (err) {
+            showAuthError(err.message || 'Не удалось создать аккаунт (возможно, имя занято)');
+        }
     }
 
-    // обработчики UI
+    // ---- Обработчики UI ----
     document.getElementById('doLoginBtn').onclick = handleLogin;
     document.getElementById('showRegisterBtn').onclick = () => {
         document.getElementById('registerForm').classList.remove('hidden');
         document.getElementById('doLoginBtn').parentElement.style.display = 'none';
         document.getElementById('showRegisterBtn').style.display = 'none';
+        clearAuthError();
     };
     document.getElementById('backToLoginBtn').onclick = () => {
         document.getElementById('registerForm').classList.add('hidden');
         document.getElementById('doLoginBtn').parentElement.style.display = 'flex';
         document.getElementById('showRegisterBtn').style.display = 'block';
+        clearAuthError();
     };
     document.getElementById('doRegisterBtn').onclick = handleRegister;
-    document.getElementById('chatLogoutBtn').onclick = logoutAndReset;
-    document.getElementById('sendMessageBtn').onclick = () => { if(currentSocket && currentUser) currentSocket.emit('sendMessage', document.getElementById('chatMessageInput').value.trim()); document.getElementById('chatMessageInput').value = ''; };
-    document.getElementById('chatMessageInput').addEventListener('keypress', (e) => { if(e.key === 'Enter') document.getElementById('sendMessageBtn').click(); });
 
-    // автовход по куке при загрузке
-    const tokenFromCookie = getCookie('swolts_token');
-    if (tokenFromCookie) {
-        const payload = parseJwt(tokenFromCookie);
-        if (payload && payload.username) startChatWithToken(tokenFromCookie, payload);
-        else logoutAndReset();
-    } else { logoutAndReset(); }
+    chatLogoutBtn.onclick = () => { logoutAndReset(); };
+    sendBtn.onclick = sendChatMessage;
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendChatMessage();
+    });
+
+    const loginPass = document.getElementById('loginPassword');
+    loginPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleLogin(); });
+    const regPass = document.getElementById('regPassword');
+    regPass.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleRegister(); });
+
+    // Инициализация
+    const autoLogged = tryAutoLoginFromCookie();
+    if (!autoLogged) {
+        authContainer.classList.remove('hidden');
+        chatInterface.classList.add('hidden');
+        deleteCookie('swolts_token');
+        document.getElementById('registerForm').classList.add('hidden');
+        document.getElementById('doLoginBtn').parentElement.style.display = 'flex';
+        document.getElementById('showRegisterBtn').style.display = 'block';
+    }
+
+    window.addEventListener('resize', () => {
+        if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
 </script>
 </body>
 </html>
