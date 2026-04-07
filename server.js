@@ -12,19 +12,22 @@ const io = socketIo(server, {
 });
 
 app.use(express.json());
-app.use(express.static('public')); // Статические файлы (HTML, CSS)
+app.use(express.static('public'));
 
-// ----- Хранилище в памяти (для примера) -----
-const users = [];      // { id, username, passwordHash }
-const messages = [];   // { id, userId, username, text, timestamp }
-let onlineUsers = new Set(); // socket.id -> userId
+// ----- Хранилища -----
+const users = [];        // { id, username, passwordHash }
+const messages = [];     // { id, userId, username, text, timestamp }
+const friendships = [];  // { userId, friendId, status: 'accepted' } (только подтверждённые)
+const friendRequests = []; // { id, fromUserId, toUserId, status: 'pending'|'accepted'|'declined' }
+
+let onlineUsers = new Map(); // socket.id -> userId
 
 // Вспомогательные функции
 function getUserById(id) {
   return users.find(u => u.id === id);
 }
 
-// ----- API регистрации / логина -----
+// ----- API -----
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Заполните все поля' });
@@ -50,11 +53,121 @@ app.post('/login', async (req, res) => {
   res.json({ token, username: user.username, id: user.id });
 });
 
-// ----- Socket.IO с аутентификацией -----
+// Поиск пользователей (не друзей и не себя)
+app.get('/users/search', (req, res) => {
+  const { q } = req.query;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.id;
+    if (!q || q.length < 1) return res.json([]);
+    const lowerQ = q.toLowerCase();
+    const results = users.filter(u => 
+      u.id !== currentUserId && 
+      u.username.toLowerCase().includes(lowerQ) &&
+      !friendships.some(f => (f.userId === currentUserId && f.friendId === u.id) || (f.userId === u.id && f.friendId === currentUserId))
+    ).map(u => ({ id: u.id, username: u.username }));
+    res.json(results);
+  } catch(e) {
+    res.status(401).json({ error: 'Неверный токен' });
+  }
+});
+
+// Отправить заявку в друзья
+app.post('/friends/request', (req, res) => {
+  const { toUserId } = req.body;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const fromUserId = decoded.id;
+    if (fromUserId === toUserId) return res.status(400).json({ error: 'Нельзя добавить себя' });
+    // Проверяем, нет ли уже заявки или дружбы
+    const existingRequest = friendRequests.find(r => (r.fromUserId === fromUserId && r.toUserId === toUserId) || (r.fromUserId === toUserId && r.toUserId === fromUserId));
+    if (existingRequest) return res.status(400).json({ error: 'Заявка уже отправлена или вы уже друзья' });
+    const isFriend = friendships.some(f => (f.userId === fromUserId && f.friendId === toUserId) || (f.userId === toUserId && f.friendId === fromUserId));
+    if (isFriend) return res.status(400).json({ error: 'Вы уже друзья' });
+    
+    const newRequest = { id: friendRequests.length + 1, fromUserId, toUserId, status: 'pending' };
+    friendRequests.push(newRequest);
+    // Уведомляем получателя через сокет, если он онлайн
+    const targetSocketId = [...onlineUsers.entries()].find(([_, uid]) => uid === toUserId)?.[0];
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('friendRequestReceived', { fromUser: getUserById(fromUserId) });
+    }
+    res.json({ success: true });
+  } catch(e) {
+    res.status(401).json({ error: 'Ошибка' });
+  }
+});
+
+// Принять заявку
+app.post('/friends/accept', (req, res) => {
+  const { requestId } = req.body;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.id;
+    const request = friendRequests.find(r => r.id === requestId && r.toUserId === currentUserId && r.status === 'pending');
+    if (!request) return res.status(404).json({ error: 'Заявка не найдена' });
+    request.status = 'accepted';
+    friendships.push({ userId: request.fromUserId, friendId: request.toUserId });
+    friendships.push({ userId: request.toUserId, friendId: request.fromUserId });
+    // Уведомляем отправителя
+    const fromSocketId = [...onlineUsers.entries()].find(([_, uid]) => uid === request.fromUserId)?.[0];
+    if (fromSocketId) {
+      io.to(fromSocketId).emit('friendRequestAccepted', { friend: getUserById(currentUserId) });
+    }
+    res.json({ success: true });
+  } catch(e) {
+    res.status(401).json({ error: 'Ошибка' });
+  }
+});
+
+// Отклонить заявку
+app.post('/friends/decline', (req, res) => {
+  const { requestId } = req.body;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const currentUserId = decoded.id;
+    const requestIndex = friendRequests.findIndex(r => r.id === requestId && r.toUserId === currentUserId && r.status === 'pending');
+    if (requestIndex === -1) return res.status(404).json({ error: 'Заявка не найдена' });
+    friendRequests[requestIndex].status = 'declined';
+    res.json({ success: true });
+  } catch(e) {
+    res.status(401).json({ error: 'Ошибка' });
+  }
+});
+
+// Получить список друзей и входящие заявки
+app.get('/friends/list', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Нет токена' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    // Друзья
+    const friendIds = friendships.filter(f => f.userId === userId).map(f => f.friendId);
+    const friends = friendIds.map(id => getUserById(id)).filter(Boolean);
+    // Входящие заявки
+    const incomingRequests = friendRequests.filter(r => r.toUserId === userId && r.status === 'pending').map(r => ({
+      id: r.id,
+      fromUser: getUserById(r.fromUserId)
+    }));
+    res.json({ friends, incomingRequests });
+  } catch(e) {
+    res.status(401).json({ error: 'Ошибка' });
+  }
+});
+
+// ----- Socket.IO -----
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Нет токена'));
-
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) return next(new Error('Неверный токен'));
     socket.user = decoded;
@@ -66,17 +179,21 @@ io.on('connection', (socket) => {
   const userId = socket.user.id;
   const username = socket.user.username;
 
-  // Добавляем в онлайн
-  onlineUsers.add(socket.id);
+  onlineUsers.set(socket.id, userId);
   socket.userId = userId;
 
-  // Отправляем историю сообщений новому пользователю
+  // Отправляем историю сообщений
   socket.emit('messageHistory', messages);
 
-  // Рассылаем всем обновлённый список онлайн
+  // Отправляем список друзей и заявки сразу (через HTTP, но можно и через сокет)
+  const friendIds = friendships.filter(f => f.userId === userId).map(f => f.friendId);
+  const friends = friendIds.map(id => getUserById(id)).filter(Boolean);
+  const incoming = friendRequests.filter(r => r.toUserId === userId && r.status === 'pending').map(r => ({ id: r.id, fromUser: getUserById(r.fromUserId) }));
+  socket.emit('friendsList', { friends, incomingRequests: incoming });
+
+  // Рассылаем онлайн-статусы (включая друзей)
   broadcastOnlineUsers();
 
-  // Обработка нового сообщения
   socket.on('sendMessage', (text) => {
     if (!text || text.trim() === '') return;
     const newMsg = {
@@ -87,11 +204,9 @@ io.on('connection', (socket) => {
       timestamp: Date.now()
     };
     messages.push(newMsg);
-    // Рассылаем всем клиентам
     io.emit('newMessage', newMsg);
   });
 
-  // Отключение
   socket.on('disconnect', () => {
     onlineUsers.delete(socket.id);
     broadcastOnlineUsers();
@@ -99,11 +214,8 @@ io.on('connection', (socket) => {
 });
 
 function broadcastOnlineUsers() {
-  const usersOnline = Array.from(onlineUsers).map(socketId => {
-    const socket = io.sockets.sockets.get(socketId);
-    return socket ? { id: socket.userId, username: socket.user.username } : null;
-  }).filter(Boolean);
-  io.emit('onlineUsers', usersOnline);
+  const onlineUsersList = Array.from(onlineUsers.values()).map(uid => getUserById(uid)).filter(Boolean);
+  io.emit('onlineUsers', onlineUsersList);
 }
 
 const PORT = process.env.PORT || 3000;
