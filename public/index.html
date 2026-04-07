@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Swolts · Discord-like мессенджер</title>
+    <title>Swolts · кислотный мессенджер</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Share Tech Mono', monospace;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
             background: radial-gradient(circle at 20% 30%, #0a0f1a, #03050b);
             height: 100vh;
             display: flex;
@@ -16,7 +16,6 @@
             align-items: center;
             padding: 16px;
         }
-        /* главный контейнер */
         .app-wrapper {
             width: 100%;
             max-width: 1300px;
@@ -28,7 +27,131 @@
             overflow: hidden;
             border: 1px solid #2aff9e;
         }
-        /* боковая панель (список друзей) */
+        /* АУТЕНТИФИКАЦИЯ (вход/регистрация) */
+        .auth-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0b0e17;
+        }
+        .auth-card {
+            background: #0b0e17;
+            border: 1px solid #2aff9e;
+            border-radius: 32px;
+            padding: 40px 32px;
+            width: 380px;
+            box-shadow: 0 0 30px rgba(42, 255, 158, 0.15);
+        }
+        .auth-card h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(135deg, #b57cff, #2aff9e);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 8px;
+        }
+        .auth-card .sub {
+            color: #6c7a8e;
+            margin-bottom: 28px;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        .input-group label {
+            display: block;
+            color: #2aff9e;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #010101;
+            border: 1px solid #2c3a4e;
+            border-radius: 60px;
+            color: #e2e8f0;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #b57cff;
+            box-shadow: 0 0 0 2px #b57cff50;
+        }
+        .auth-buttons {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0 12px;
+        }
+        .btn-primary {
+            background: linear-gradient(95deg, #2aff9e, #7c3aed);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 60px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            flex: 1;
+            text-transform: uppercase;
+        }
+        .btn-secondary {
+            background: transparent;
+            border: 1.5px solid #2aff9e;
+            color: #2aff9e;
+            padding: 12px 20px;
+            border-radius: 60px;
+            font-weight: bold;
+            cursor: pointer;
+            flex: 1;
+            text-transform: uppercase;
+        }
+        .captcha-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .captcha-btn {
+            background: #1e2a3a;
+            border: 1px solid #2aff9e;
+            padding: 10px 20px;
+            border-radius: 60px;
+            color: #2aff9e;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+        .captcha-btn.active {
+            background: #2aff9e;
+            color: black;
+            box-shadow: 0 0 12px #2aff9e;
+        }
+        .captcha-hint {
+            font-size: 11px;
+            color: #ff5e7c;
+        }
+        .error-msg {
+            color: #ff5e7c;
+            background: #330000;
+            padding: 8px;
+            border-radius: 60px;
+            text-align: center;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+        .hidden { display: none !important; }
+        
+        /* МЕССЕНДЖЕР (сайдбар + чат) */
+        .messenger-container {
+            display: flex;
+            width: 100%;
+        }
         .sidebar {
             width: 280px;
             background: #070a12;
@@ -72,6 +195,7 @@
             display: flex;
             justify-content: space-between;
             border-bottom: 1px solid #2aff9e20;
+            font-size: 13px;
         }
         .search-result-item:hover { background: #2aff9e20; }
         .friend-list {
@@ -94,7 +218,6 @@
         .friend-status { width: 10px; height: 10px; border-radius: 10px; background: #4ade80; box-shadow: 0 0 4px #4ade80; }
         .friend-status.offline { background: #5f6c84; box-shadow: none; }
         .friend-name { flex: 1; color: #e2e8f0; font-size: 14px; }
-        /* чат область */
         .chat-area {
             flex: 1;
             display: flex;
@@ -154,51 +277,76 @@
             font-weight: bold;
             cursor: pointer;
         }
-        /* панель авторизации */
-        .auth-panel {
-            width: 100%;
+        .user-footer {
+            padding: 12px;
+            border-top: 1px solid #2aff9e30;
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
         }
-        .auth-card {
-            background: #0b0e17;
-            border: 1px solid #2aff9e;
-            border-radius: 32px;
-            padding: 32px;
-            max-width: 400px;
+        .logout-btn {
+            background: none;
+            border: 1px solid #ff5e7c;
+            color: #ff5e7c;
+            border-radius: 40px;
+            padding: 4px 12px;
+            cursor: pointer;
         }
-        .hidden { display: none !important; }
-        .error-msg { color: #ff5e7c; background: #330000; padding: 8px; border-radius: 40px; text-align: center; margin-top: 12px; }
-        button, .search-result-item { cursor: pointer; }
         ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #1a1f2e; }
+        ::-webkit-scrollbar-thumb { background: #2aff9e; border-radius: 10px; }
     </style>
 </head>
 <body>
 <div class="app-wrapper" id="appWrapper">
-    <!-- Аутентификация -->
-    <div id="authContainer" class="auth-panel">
+    <!-- Панель входа/регистрации (капча "ДОБРО" для регистрации) -->
+    <div id="authContainer" class="auth-container">
         <div class="auth-card">
-            <h3 style="color:#2aff9e;">⚡ SWOLTS</h3>
-            <p style="color:#aaa;">мессенджер будущего</p>
+            <h1>⚡ SWOLTS</h1>
+            <div class="sub">кислотное будущее</div>
             <div id="authError" class="error-msg hidden"></div>
-            <div class="input-group"><label>ЛОГИН</label><input id="loginUsername" type="text"></div>
-            <div class="input-group"><label>ПАРОЛЬ</label><input id="loginPassword" type="password"></div>
-            <div class="auth-buttons" style="display:flex; gap:12px; margin-top:16px;">
-                <button id="doLoginBtn" style="background:#2aff9e; flex:1;">Войти</button>
-                <button id="showRegisterBtn" style="background:transparent; border:1px solid #2aff9e; flex:1;">Регистрация</button>
+            
+            <!-- Форма входа -->
+            <div id="loginForm">
+                <div class="input-group">
+                    <label>ЛОГИН</label>
+                    <input type="text" id="loginUsername" placeholder="никнейм" autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label>ПАРОЛЬ</label>
+                    <input type="password" id="loginPassword" placeholder="••••••" autocomplete="current-password">
+                </div>
+                <div class="auth-buttons">
+                    <button class="btn-primary" id="doLoginBtn">ПРОДОЛЖИТЬ →</button>
+                    <button class="btn-secondary" id="showRegBtn">РЕГИСТРАЦИЯ</button>
+                </div>
             </div>
-            <div id="registerForm" class="hidden" style="margin-top:20px;">
-                <input id="regUsername" placeholder="Логин (мин 3)" style="width:100%; margin-bottom:8px; padding:8px;"><br>
-                <input id="regPassword" type="password" placeholder="Пароль (мин 4)" style="width:100%; margin-bottom:8px; padding:8px;">
-                <button id="doRegisterBtn" style="background:#b57cff;">Создать</button>
-                <button id="backToLoginBtn">Назад</button>
+
+            <!-- Форма регистрации (скрыта) -->
+            <div id="regForm" class="hidden">
+                <div class="input-group">
+                    <label>НОВЫЙ ЛОГИН</label>
+                    <input type="text" id="regUsername" placeholder="от 3 символов">
+                </div>
+                <div class="input-group">
+                    <label>ПАРОЛЬ</label>
+                    <input type="password" id="regPassword" placeholder="минимум 4 символа">
+                </div>
+                <!-- Капча: кнопка "ДОБРО" -->
+                <div class="captcha-row">
+                    <button id="captchaBtn" class="captcha-btn">ДОБРО</button>
+                    <span class="captcha-hint" id="captchaHint">нажмите, чтобы подтвердить</span>
+                </div>
+                <div class="auth-buttons">
+                    <button class="btn-primary" id="doRegBtn">СОЗДАТЬ</button>
+                    <button class="btn-secondary" id="backToLoginBtn">НАЗАД</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Основной интерфейс мессенджера -->
-    <div id="messengerInterface" class="hidden" style="display: flex; width: 100%;">
+    <!-- Мессенджер (скрыт до входа) -->
+    <div id="messengerContainer" class="messenger-container hidden">
         <div class="sidebar">
             <div class="sidebar-header"><h3>👥 ДРУЗЬЯ</h3></div>
             <div class="search-add">
@@ -206,38 +354,38 @@
                 <div id="searchResults" class="search-results hidden"></div>
             </div>
             <div class="friend-list" id="friendsList"></div>
-            <div style="padding:12px; border-top:1px solid #2aff9e30;">
+            <div class="user-footer">
                 <span id="myUsername" style="color:#b57cff;"></span>
-                <button id="logoutBtn" style="float:right; background:none; border:1px solid #ff5e7c; color:#ff5e7c; border-radius:40px; padding:4px 12px;">Выйти</button>
+                <button class="logout-btn" id="logoutBtn">ВЫЙТИ</button>
             </div>
         </div>
         <div class="chat-area">
             <div class="chat-header" id="chatWithLabel">🤖 Выберите друга</div>
-            <div class="messages-container" id="messagesList"><div class="system-message" style="color:#aaa;">👈 Нажмите на друга чтобы начать чат</div></div>
+            <div class="messages-container" id="messagesList"><div style="color:#6c7a8e; text-align:center;">👈 Нажмите на друга чтобы начать чат</div></div>
             <div class="input-area" id="inputArea" style="display: none;">
                 <input type="text" id="messageInput" placeholder="Сообщение..." maxlength="500">
-                <button id="sendMsgBtn">Отправить</button>
+                <button id="sendMsgBtn">ОТПРАВИТЬ</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ---- Куки ----
+    // ---- Куки для токена ----
     function setCookie(n,v,d=7){let e=new Date(Date.now()+d*864e5).toUTCString();document.cookie=`${n}=${v}; path=/; expires=${e}; SameSite=Lax`;}
     function getCookie(n){let m=document.cookie.match(new RegExp('(^| )'+n+'=([^;]+)'));return m?m[2]:null;}
     function delCookie(n){document.cookie=`${n}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;}
-
     function parseJwt(t){try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));}catch(e){return null;}}
 
     let currentUser = null;
     let currentSocket = null;
-    let currentFriend = null; // выбранный друг { id, username }
-    let friendsMap = new Map(); // id -> friend object
+    let currentFriend = null;
+    let friendsMap = new Map();
+    let captchaPassed = false; // для регистрации
 
-    // DOM
-    const authDiv = document.getElementById('authContainer');
-    const messengerDiv = document.getElementById('messengerInterface');
+    // DOM элементы
+    const authContainer = document.getElementById('authContainer');
+    const messengerContainer = document.getElementById('messengerContainer');
     const friendsListDiv = document.getElementById('friendsList');
     const searchInput = document.getElementById('searchFriendInput');
     const searchResultsDiv = document.getElementById('searchResults');
@@ -246,15 +394,64 @@
     const inputArea = document.getElementById('inputArea');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendMsgBtn');
+    const authError = document.getElementById('authError');
 
-    function showAuthError(msg){ let e=document.getElementById('authError'); e.textContent=msg; e.classList.remove('hidden'); setTimeout(()=>e.classList.add('hidden'),3000); }
+    function showAuthError(msg){ authError.textContent=msg; authError.classList.remove('hidden'); setTimeout(()=>authError.classList.add('hidden'),3000); }
+    function escapeHtml(str){ return str.replace(/[&<>]/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];}); }
 
-    // Загрузка списка друзей с сервера
+    // ---- Капча ----
+    const captchaBtn = document.getElementById('captchaBtn');
+    const captchaHint = document.getElementById('captchaHint');
+    captchaBtn.onclick = () => {
+        captchaPassed = true;
+        captchaBtn.classList.add('active');
+        captchaHint.textContent = '✓ подтверждено';
+        captchaHint.style.color = '#2aff9e';
+    };
+
+    // ---- API запросы ----
+    async function apiRequest(url, data) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+        return json;
+    }
+
+    // ---- Регистрация с капчей ----
+    async function handleRegister() {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value;
+        if (username.length < 3) return showAuthError('Логин минимум 3 символа');
+        if (password.length < 4) return showAuthError('Пароль минимум 4 символа');
+        if (!captchaPassed) return showAuthError('Нажмите кнопку ДОБРО для подтверждения');
+        try {
+            const data = await apiRequest('/api/register', { username, password });
+            setCookie('swolts_token', data.token, 7);
+            const payload = parseJwt(data.token);
+            currentUser = { id: payload.id, username: payload.username };
+            startMessenger();
+        } catch(e) { showAuthError(e.message); }
+    }
+
+    async function handleLogin() {
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if (!username || !password) return showAuthError('Заполните все поля');
+        try {
+            const data = await apiRequest('/api/login', { username, password });
+            setCookie('swolts_token', data.token, 7);
+            const payload = parseJwt(data.token);
+            currentUser = { id: payload.id, username: payload.username };
+            startMessenger();
+        } catch(e) { showAuthError(e.message); }
+    }
+
+    // ---- Мессенджер: загрузка друзей, сообщений, сокеты ----
     async function loadFriends() {
         const res = await fetch(`/api/friends?userId=${currentUser.id}`);
         const friends = await res.json();
         friendsMap.clear();
-        friends.forEach(f => { friendsMap.set(f.id, f); });
+        friends.forEach(f => friendsMap.set(f.id, f));
         renderFriendsList();
     }
 
@@ -275,7 +472,6 @@
         currentFriend = friend;
         chatWithLabel.innerHTML = `💬 Чат с ${escapeHtml(friend.username)} ${friend.online ? '🟢' : '⚫'}`;
         inputArea.style.display = 'flex';
-        // загрузить историю сообщений
         const res = await fetch(`/api/messages/${friend.id}?myId=${currentUser.id}`);
         const msgs = await res.json();
         messagesContainer.innerHTML = '';
@@ -295,33 +491,11 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Поиск пользователей
-    searchInput.addEventListener('input', async () => {
-        const q = searchInput.value.trim();
-        if (q.length < 2) { searchResultsDiv.classList.add('hidden'); return; }
-        const res = await fetch(`/api/search-users?q=${encodeURIComponent(q)}&currentUserId=${currentUser.id}`);
-        const users = await res.json();
-        if (users.length === 0) { searchResultsDiv.classList.add('hidden'); return; }
-        searchResultsDiv.classList.remove('hidden');
-        searchResultsDiv.innerHTML = users.map(u => `<div class="search-result-item" data-id="${u.id}" data-name="${u.username}">${escapeHtml(u.username)} <span style="color:#2aff9e;">+</span></div>`).join('');
-        document.querySelectorAll('.search-result-item').forEach(el => {
-            el.onclick = () => addFriend(el.dataset.id, el.dataset.name);
-        });
-    });
-
-    async function addFriend(friendId, friendUsername) {
-        if (friendsMap.has(parseInt(friendId))) { alert('Уже в друзьях'); return; }
-        currentSocket.emit('add_friend', { targetUsername: friendUsername });
-        searchInput.value = '';
-        searchResultsDiv.classList.add('hidden');
-    }
-
-    // Socket обработчики
     function initSocket() {
         if (currentSocket) currentSocket.disconnect();
         const token = getCookie('swolts_token');
         currentSocket = io({ auth: { token } });
-        currentSocket.on('connect', () => console.log('socket connected'));
+        currentSocket.on('connect', () => console.log('socket ready'));
         currentSocket.on('friend_added', (newFriend) => {
             friendsMap.set(newFriend.id, newFriend);
             renderFriendsList();
@@ -336,12 +510,11 @@
             }
         });
         currentSocket.on('new_private_message', (msg) => {
-            // если это сообщение от текущего выбранного друга или ему
             if ((msg.from === currentUser.id && msg.to === currentFriend?.id) ||
                 (msg.from === currentFriend?.id && msg.to === currentUser.id)) {
                 addMessageToUI(msg, msg.from === currentUser.id);
             }
-            // обновить список сообщений (можно перезагрузить, но просто добавляем)
+            // можно также обновить превью в списке друзей (не обязательно)
         });
         currentSocket.on('friend_error', (err) => alert(err));
     }
@@ -354,85 +527,75 @@
         messageInput.value = '';
     }
 
-    // Выход
+    // Поиск пользователей для добавления
+    searchInput.addEventListener('input', async () => {
+        const q = searchInput.value.trim();
+        if (q.length < 2) { searchResultsDiv.classList.add('hidden'); return; }
+        const res = await fetch(`/api/search-users?q=${encodeURIComponent(q)}&currentUserId=${currentUser.id}`);
+        const users = await res.json();
+        if (users.length === 0) { searchResultsDiv.classList.add('hidden'); return; }
+        searchResultsDiv.classList.remove('hidden');
+        searchResultsDiv.innerHTML = users.map(u => `<div class="search-result-item" data-id="${u.id}" data-name="${u.username}">${escapeHtml(u.username)} <span style="color:#2aff9e;">+</span></div>`).join('');
+        document.querySelectorAll('.search-result-item').forEach(el => {
+            el.onclick = () => {
+                const friendId = el.dataset.id;
+                const friendName = el.dataset.name;
+                if (friendsMap.has(parseInt(friendId))) { alert('Уже в друзьях'); return; }
+                currentSocket.emit('add_friend', { targetUsername: friendName });
+                searchInput.value = '';
+                searchResultsDiv.classList.add('hidden');
+            };
+        });
+    });
+
+    async function startMessenger() {
+        authContainer.classList.add('hidden');
+        messengerContainer.classList.remove('hidden');
+        document.getElementById('myUsername').innerText = currentUser.username;
+        initSocket();
+        await loadFriends();
+    }
+
     function logout() {
         if (currentSocket) currentSocket.disconnect();
         delCookie('swolts_token');
         location.reload();
     }
 
-    // Авторизация
-    async function apiRequest(url, data) {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.message);
-        return json;
-    }
-
-    async function handleLogin() {
-        const username = document.getElementById('loginUsername').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        if (!username || !password) return showAuthError('Заполните поля');
-        try {
-            const data = await apiRequest('/api/login', { username, password });
-            setCookie('swolts_token', data.token, 7);
-            const payload = parseJwt(data.token);
-            currentUser = { id: payload.id, username: payload.username };
-            startApp();
-        } catch(e) { showAuthError(e.message); }
-    }
-
-    async function handleRegister() {
-        const username = document.getElementById('regUsername').value.trim();
-        const password = document.getElementById('regPassword').value;
-        if (username.length<3 || password.length<4) return showAuthError('Логин>=3, пароль>=4');
-        try {
-            const data = await apiRequest('/api/register', { username, password });
-            setCookie('swolts_token', data.token, 7);
-            const payload = parseJwt(data.token);
-            currentUser = { id: payload.id, username: payload.username };
-            startApp();
-        } catch(e) { showAuthError(e.message); }
-    }
-
-    async function startApp() {
-        authDiv.classList.add('hidden');
-        messengerDiv.classList.remove('hidden');
-        document.getElementById('myUsername').innerText = currentUser.username;
-        initSocket();
-        await loadFriends();
-        // авто-обновление через сокеты уже есть
-        // дополнительно можно подписаться на события
-    }
-
-    // UI обработчики
-    document.getElementById('doLoginBtn').onclick = handleLogin;
-    document.getElementById('showRegisterBtn').onclick = () => {
-        document.getElementById('registerForm').classList.remove('hidden');
-        document.getElementById('doLoginBtn').parentElement.style.display = 'none';
-        document.getElementById('showRegisterBtn').style.display = 'none';
+    // Переключение форм
+    document.getElementById('showRegBtn').onclick = () => {
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('regForm').classList.remove('hidden');
+        // сброс капчи
+        captchaPassed = false;
+        captchaBtn.classList.remove('active');
+        captchaHint.textContent = 'нажмите, чтобы подтвердить';
+        captchaHint.style.color = '#ff5e7c';
     };
     document.getElementById('backToLoginBtn').onclick = () => {
-        document.getElementById('registerForm').classList.add('hidden');
-        document.getElementById('doLoginBtn').parentElement.style.display = 'flex';
-        document.getElementById('showRegisterBtn').style.display = 'block';
+        document.getElementById('regForm').classList.add('hidden');
+        document.getElementById('loginForm').classList.remove('hidden');
+        authError.classList.add('hidden');
     };
-    document.getElementById('doRegisterBtn').onclick = handleRegister;
+    document.getElementById('doLoginBtn').onclick = handleLogin;
+    document.getElementById('doRegBtn').onclick = handleRegister;
     document.getElementById('logoutBtn').onclick = logout;
     sendBtn.onclick = sendMessage;
     messageInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
 
-    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];}); }
-
-    // автовход
+    // Автовход по куке
     const token = getCookie('swolts_token');
     if (token) {
         const payload = parseJwt(token);
         if (payload && payload.id) {
             currentUser = { id: payload.id, username: payload.username };
-            startApp();
-        } else { authDiv.classList.remove('hidden'); }
-    } else { authDiv.classList.remove('hidden'); }
+            startMessenger();
+        } else {
+            authContainer.classList.remove('hidden');
+        }
+    } else {
+        authContainer.classList.remove('hidden');
+    }
 </script>
 </body>
 </html>
