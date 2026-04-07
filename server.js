@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -9,16 +11,19 @@ const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
-// Путь к "базе данных"
+const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'database.json');
 
 // Middleware
-app.use(cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:5500', 'http://localhost:5500', 'null'],
-    credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -29,23 +34,22 @@ async function initDatabase() {
     } catch {
         await fs.writeFile(DB_PATH, JSON.stringify({
             users: [],
-            verificationCodes: []
+            verificationCodes: [],
+            messages: []
         }, null, 2));
     }
 }
 
-// Чтение базы
 async function readDB() {
     const data = await fs.readFile(DB_PATH, 'utf-8');
     return JSON.parse(data);
 }
 
-// Запись в базу
 async function writeDB(data) {
     await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-// Настройка почты (Ethereal для теста, или SMTP из .env)
+// Настройка почты
 let transporter;
 if (process.env.SMTP_HOST) {
     transporter = nodemailer.createTransport({
@@ -58,7 +62,6 @@ if (process.env.SMTP_HOST) {
         }
     });
 } else {
-    // Тестовый аккаунт Ethereal (создаётся автоматически)
     (async () => {
         const testAccount = await nodemailer.createTestAccount();
         transporter = nodemailer.createTransport({
@@ -70,80 +73,46 @@ if (process.env.SMTP_HOST) {
                 pass: testAccount.pass
             }
         });
-        console.log('📧 Ethereal email:', testAccount.user);
-        console.log('🔗 Просмотр писем: https://ethereal.email/login');
+        console.log('📧 Тестовый email:', testAccount.user);
     })();
 }
 
-// Отправка письма с кодом
 async function sendVerificationEmail(email, code) {
     const mailOptions = {
-        from: `"Swolts" <${process.env.SMTP_FROM || 'noreply@swolts.com'}>`,
+        from: '"Swolts" <noreply@swolts.com>',
         to: email,
-        subject: 'Подтверждение регистрации Swolts',
-        html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h1 style="color: #7c83ff;">🐻 Swolts</h1>
-                <h2>Подтверждение email</h2>
-                <p>Ваш код подтверждения:</p>
-                <div style="background: #f0f0f0; padding: 20px; text-align: center; border-radius: 10px;">
-                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 10px; color: #7c83ff;">${code}</span>
-                </div>
-                <p>Код действителен 10 минут.</p>
-            </div>
-        `
+        subject: 'Код подтверждения Swolts',
+        html: `<h1>Swolts</h1><p>Ваш код: <strong>${code}</strong></p>`
     };
     return transporter.sendMail(mailOptions);
 }
 
-// Генерация 6-значного кода
 function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Очистка просроченных кодов
-async function cleanupExpiredCodes() {
-    const db = await readDB();
-    const now = Date.now();
-    db.verificationCodes = db.verificationCodes.filter(c => c.expiresAt > now);
-    await writeDB(db);
-}
-
-// Регистрация: шаг 1 — отправка кода
+// Роуты авторизации
 app.post('/register/step1', async (req, res) => {
     try {
         const { username, email, password } = req.body;
         if (!username || !email || !password) {
             return res.status(400).json({ error: 'Все поля обязательны' });
         }
-        if (username.length < 3) {
-            return res.status(400).json({ error: 'Никнейм минимум 3 символа' });
-        }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ error: 'Некорректный email' });
-        }
-        if (password.length < 4) {
-            return res.status(400).json({ error: 'Пароль минимум 4 символа' });
-        }
 
         const db = await readDB();
         const existing = db.users.find(u => u.username === username || u.email === email);
         if (existing) {
-            return res.status(400).json({ error: 'Пользователь с таким именем или email уже существует' });
+            return res.status(400).json({ error: 'Пользователь уже существует' });
         }
 
-        // Удаляем старые коды для этого email
         db.verificationCodes = db.verificationCodes.filter(c => c.email !== email);
-
         const code = generateVerificationCode();
-        const expiresAt = Date.now() + 10 * 60 * 1000; // 10 минут
         const passwordHash = await bcrypt.hash(password, 10);
 
         db.verificationCodes.push({
             email,
             code,
-            expiresAt,
+            expiresAt: Date.now() + 10 * 60 * 1000,
             username,
             passwordHash
         });
@@ -151,29 +120,22 @@ app.post('/register/step1', async (req, res) => {
         await writeDB(db);
         await sendVerificationEmail(email, code);
 
-        res.json({ success: true, message: 'Код отправлен на email' });
+        res.json({ success: true, message: 'Код отправлен' });
     } catch (error) {
-        console.error('Ошибка регистрации (шаг 1):', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
-// Подтверждение кода и создание аккаунта
 app.post('/register/verify', async (req, res) => {
     try {
         const { email, code } = req.body;
-        if (!email || !code) {
-            return res.status(400).json({ error: 'Email и код обязательны' });
-        }
-
         const db = await readDB();
         const verification = db.verificationCodes.find(v => v.email === email && v.code === code);
+
         if (!verification) {
             return res.status(400).json({ error: 'Неверный код' });
         }
         if (verification.expiresAt < Date.now()) {
-            db.verificationCodes = db.verificationCodes.filter(v => v.email !== email);
-            await writeDB(db);
             return res.status(400).json({ error: 'Код истёк' });
         }
 
@@ -182,8 +144,7 @@ app.post('/register/verify', async (req, res) => {
             username: verification.username,
             email: verification.email,
             passwordHash: verification.passwordHash,
-            createdAt: new Date().toISOString(),
-            emailVerified: true
+            createdAt: new Date().toISOString()
         };
 
         db.users.push(newUser);
@@ -191,94 +152,95 @@ app.post('/register/verify', async (req, res) => {
         await writeDB(db);
 
         const token = jwt.sign(
-            { id: newUser.id, username: newUser.username, email: newUser.email },
-            process.env.JWT_SECRET || 'jwt-secret-key',
+            { id: newUser.id, username: newUser.username },
+            process.env.JWT_SECRET || 'secret',
             { expiresIn: '7d' }
         );
 
-        res.json({
-            success: true,
-            message: 'Аккаунт создан',
-            token,
-            user: { id: newUser.id, username: newUser.username, email: newUser.email }
-        });
+        res.json({ success: true, token, user: { id: newUser.id, username: newUser.username } });
     } catch (error) {
-        console.error('Ошибка подтверждения:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
-// Вход
 app.post('/login', async (req, res) => {
     try {
-        const { username, password, remember } = req.body;
-        if (!username || !password) {
-            return res.status(400).json({ error: 'Логин и пароль обязательны' });
-        }
-
+        const { username, password } = req.body;
         const db = await readDB();
         const user = db.users.find(u => u.username === username || u.email === username);
-        if (!user) {
+
+        if (!user || !await bcrypt.compare(password, user.passwordHash)) {
             return res.status(401).json({ error: 'Неверный логин или пароль' });
         }
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) {
-            return res.status(401).json({ error: 'Неверный логин или пароль' });
-        }
-
-        const expiresIn = remember ? '30d' : '7d';
         const token = jwt.sign(
-            { id: user.id, username: user.username, email: user.email },
-            process.env.JWT_SECRET || 'jwt-secret-key',
-            { expiresIn }
+            { id: user.id, username: user.username },
+            process.env.JWT_SECRET || 'secret',
+            { expiresIn: '7d' }
         );
 
-        res.json({
-            success: true,
-            message: 'Вход выполнен',
-            token,
-            user: { id: user.id, username: user.username, email: user.email }
-        });
+        res.json({ success: true, token, user: { id: user.id, username: user.username } });
     } catch (error) {
-        console.error('Ошибка входа:', error);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
-// Повторная отправка кода
-app.post('/register/resend-code', async (req, res) => {
+// Socket.IO — ЧАТ
+const onlineUsers = new Map();
+
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) return next(new Error('Требуется авторизация'));
+    
     try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: 'Email обязателен' });
-        }
+        const user = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        socket.user = user;
+        next();
+    } catch {
+        next(new Error('Неверный токен'));
+    }
+});
+
+io.on('connection', async (socket) => {
+    const user = socket.user;
+    onlineUsers.set(socket.id, user);
+    
+    console.log(`✅ ${user.username} подключился`);
+    io.emit('onlineUsers', Array.from(onlineUsers.values()).map(u => u.username));
+
+    // Отправляем историю сообщений
+    const db = await readDB();
+    socket.emit('messageHistory', db.messages.slice(-50));
+
+    socket.on('sendMessage', async (text) => {
+        if (!text || text.length > 500) return;
+        
+        const message = {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            username: user.username,
+            text: text.trim(),
+            timestamp: new Date().toISOString()
+        };
 
         const db = await readDB();
-        const verification = db.verificationCodes.find(v => v.email === email);
-        if (!verification) {
-            return res.status(400).json({ error: 'Регистрация не найдена. Начните заново.' });
-        }
-
-        const newCode = generateVerificationCode();
-        verification.code = newCode;
-        verification.expiresAt = Date.now() + 10 * 60 * 1000;
-
+        db.messages.push(message);
+        if (db.messages.length > 100) db.messages = db.messages.slice(-100);
         await writeDB(db);
-        await sendVerificationEmail(email, newCode);
 
-        res.json({ success: true, message: 'Новый код отправлен' });
-    } catch (error) {
-        console.error('Ошибка повторной отправки:', error);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
+        io.emit('newMessage', message);
+    });
+
+    socket.on('disconnect', () => {
+        onlineUsers.delete(socket.id);
+        console.log(`❌ ${user.username} отключился`);
+        io.emit('onlineUsers', Array.from(onlineUsers.values()).map(u => u.username));
+    });
 });
 
 // Запуск сервера
 initDatabase().then(() => {
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
         console.log(`🚀 Сервер Swolts запущен на порту ${PORT}`);
-        // Очистка старых кодов каждые 5 минут
-        setInterval(cleanupExpiredCodes, 5 * 60 * 1000);
     });
 });
