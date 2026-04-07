@@ -1,0 +1,175 @@
+// В начале файла добавь:
+const API_URL = 'http://localhost:3000';
+
+// Функция для сохранения токена
+function setAuthToken(token) {
+    localStorage.setItem('swolts_token', token);
+}
+
+// Функция получения токена
+function getAuthToken() {
+    return localStorage.getItem('swolts_token');
+}
+
+// Обновлённая отправка формы регистрации (ШАГ 1)
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('regUsername').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regConfirm').value;
+
+    errorMsg.innerText = '';
+    successMsg.innerText = '';
+
+    // Валидация...
+    if (!username || !email || !password || !confirm) {
+        errorMsg.innerText = '❌ Заполните все поля';
+        return;
+    }
+
+    if (password !== confirm) {
+        errorMsg.innerText = '❌ Пароли не совпадают';
+        return;
+    }
+
+    if (!checkCaptcha()) {
+        errorMsg.innerText = '❌ Неправильно введено слово с капчи';
+        refreshCaptcha();
+        return;
+    }
+
+    // Сохраняем данные
+    pendingRegistration = { username, email, password };
+
+    try {
+        // Отправляем запрос на сервер
+        const res = await fetch(`${API_URL}/register/step1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // Показываем секцию верификации
+            registerSection.classList.remove('active');
+            verifySection.classList.add('active');
+            document.getElementById('displayEmail').innerText = email;
+            
+            // Запускаем таймер
+            startTimer();
+            codeInputs.forEach(i => i.value = '');
+            codeInputs[0].focus();
+            
+            successMsg.innerText = '📧 Код отправлен на ваш email';
+        } else {
+            errorMsg.innerText = '❌ ' + data.error;
+        }
+    } catch (error) {
+        errorMsg.innerText = '❌ Ошибка соединения с сервером';
+    }
+});
+
+// Обновлённое подтверждение кода
+document.getElementById('verifyCodeBtn').addEventListener('click', async () => {
+    const enteredCode = Array.from(codeInputs).map(i => i.value).join('');
+    
+    errorMsg.innerText = '';
+    successMsg.innerText = '';
+
+    if (enteredCode.length !== 6) {
+        errorMsg.innerText = '❌ Введите 6-значный код';
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/register/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: pendingRegistration.email,
+                code: enteredCode
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            setAuthToken(data.token);
+            clearInterval(timerInterval);
+            successMsg.innerText = '✅ Аккаунт создан! Перенаправление...';
+            document.getElementById('authContainer').classList.add('fade-out');
+            setTimeout(() => {
+                window.location.href = 'dashboard.html';
+            }, 500);
+        } else {
+            errorMsg.innerText = '❌ ' + data.error;
+        }
+    } catch (error) {
+        errorMsg.innerText = '❌ Ошибка соединения с сервером';
+    }
+});
+
+// Обновлённый вход
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const remember = document.getElementById('remember').checked;
+
+    if (!username || !password) {
+        errorMsg.innerText = '❌ Заполните все поля';
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, remember })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            setAuthToken(data.token);
+            successMsg.innerText = '✅ Вход выполнен! Перенаправление...';
+            document.getElementById('authContainer').classList.add('fade-out');
+            setTimeout(() => {
+                window.location.href = 'dashboard.html';
+            }, 500);
+        } else {
+            errorMsg.innerText = '❌ ' + data.error;
+        }
+    } catch (error) {
+        errorMsg.innerText = '❌ Ошибка соединения с сервером';
+    }
+});
+
+// Повторная отправка кода
+document.getElementById('resendBtn').addEventListener('click', async () => {
+    if (!canResend) return;
+    
+    try {
+        const res = await fetch(`${API_URL}/register/resend-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: pendingRegistration.email })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            successMsg.innerText = '📧 Новый код отправлен на email';
+            startTimer();
+            codeInputs.forEach(i => i.value = '');
+            codeInputs[0].focus();
+        } else {
+            errorMsg.innerText = '❌ ' + data.error;
+        }
+    } catch (error) {
+        errorMsg.innerText = '❌ Ошибка соединения с сервером';
+    }
+});
