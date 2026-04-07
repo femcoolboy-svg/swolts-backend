@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinders - Чат</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>🐻 Kinders · свободный чат</h2>
+            <div class="user-info">
+                <span id="currentUser"></span>
+                <button id="logoutBtn" class="logout-btn">Выйти</button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="messages">
+            <div class="welcome-msg">✨ Добро пожаловать в Kinders! Здесь говорят свободно ✨</div>
+        </div>
+        
+        <div class="chat-input-area">
+            <input type="text" id="messageInput" placeholder="Напиши сообщение..." maxlength="500">
+            <button id="sendBtn">📤 Отправить</button>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        
+        if (!token || !username) {
+            window.location.href = 'login.html';
+        }
+        
+        document.getElementById('currentUser').innerHTML = `👤 ${username}`;
+        
+        const socket = io({
+            auth: { token }
+        });
+        
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        
+        socket.on('history', (history) => {
+            history.forEach(msg => addMessage(msg));
+            scrollToBottom();
+        });
+        
+        socket.on('new_message', (msg) => {
+            addMessage(msg);
+            scrollToBottom();
+        });
+        
+        socket.on('user_joined', (msg) => {
+            showStatus(msg, 'join');
+        });
+        
+        socket.on('user_left', (msg) => {
+            showStatus(msg, 'leave');
+        });
+        
+        function addMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            const isCurrentUser = msg.username === username;
+            messageDiv.innerHTML = `
+                <span class="message-user" style="color: ${isCurrentUser ? '#764ba2' : '#667eea'}">${msg.username}</span>
+                <span class="message-time">${msg.time}</span>
+                <div class="message-text">${escapeHtml(msg.text)}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+        }
+        
+        function showStatus(msg, type) {
+            const statusDivMsg = document.createElement('div');
+            statusDivMsg.className = `status-message ${type}`;
+            statusDivMsg.textContent = msg;
+            messagesDiv.appendChild(statusDivMsg);
+            setTimeout(() => statusDivMsg.remove(), 3000);
+        }
+        
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                socket.emit('send_message', text);
+                messageInput.value = '';
+            }
+        }
+        
+        sendBtn.onclick = sendMessage;
+        messageInput.onkeypress = (e) => {
+            if (e.key === 'Enter') sendMessage();
+        };
+        
+        function scrollToBottom() {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        
+        document.getElementById('logoutBtn').onclick = () => {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        };
+        
+        socket.on('connect_error', (err) => {
+            alert('Ошибка подключения к Kinders. Возможно, сервер перезапускается.');
+            localStorage.clear();
+            window.location.href = 'login.html';
+        });
+    </script>
+</body>
+</html>
